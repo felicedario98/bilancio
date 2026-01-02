@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Finanze</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f2f2f7">
+    <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+    <div class="container">
+      <div class="tabs">
+        <button class="tab-btn active-entrate" onclick="switchTab('entrate')">ENTRATE</button>
+        <button class="tab-btn" onclick="switchTab('spese')">SPESE</button>
+        <button class="tab-btn" onclick="switchTab('risparmi')">RISPARMI</button>
+        <button class="tab-btn" onclick="switchTab('trasferimenti')">GIR.CONTO</button>
+        <button class="tab-btn" onclick="switchTab('macchina')">MACCHINA</button>
+      </div>
+
+      <form id="mainForm">
+        <div class="row" id="row-ids">
+          <div class="col form-group">
+            <label>ID Op.</label>
+            <input type="text" id="idAuto" readonly style="background:#eee;">
+          </div>
+          <div class="col form-group" id="group-idRif">
+            <label>Rif. Spesa</label>
+            <input type="text" id="idRif">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" id="data" required>
+        </div>
+
+        <div id="area-macchina" class="hidden">
+           <div class="form-group">
+              <label>Macchina</label>
+              <select id="macchina"></select>
+           </div>
+           <div class="row">
+              <div class="col form-group">
+                 <label>KM</label>
+                 <input type="number" id="kmQuadro">
+              </div>
+              <div class="col form-group">
+                 <label>€/Litro</label>
+                 <input type="text" inputmode="decimal" id="prezzoLitro">
+              </div>
+           </div>
+        </div>
+
+        <div id="area-categorie">
+            <div class="form-group">
+              <label>Categoria</label>
+              <select id="categoria" onchange="onCategoryChange()">
+                <option value="" disabled selected>Caricamento...</option>
+              </select>
+              <input type="hidden" id="categoriaText">
+            </div>
+            <div class="form-group" id="group-subcat">
+              <label>Sottocategoria</label>
+              <select id="sottocategoria"><option>--</option></select>
+            </div>
+        </div>
+
+        <div class="form-group">
+          <label>Importo (€)</label>
+          <input type="text" inputmode="decimal" id="importo" class="input-euro" placeholder="0,00" required>
+        </div>
+
+        <div class="form-group hidden" id="group-rimborso">
+          <label>Rimborso?</label>
+          <select id="daRimborsare">
+             <option value="NO" selected>No</option>
+             <option value="SI">Si</option>
+          </select>
+        </div>
+
+        <div id="area-dettagli">
+            <div class="section-title" id="title-mittente">Dettagli</div>
+            <div class="row">
+              <div class="col form-group">
+                <label>Conto</label>
+                <select id="conto" required></select>
+              </div>
+              <div class="col form-group">
+                <label>Utente</label>
+                <select id="utente"></select>
+              </div>
+            </div>
+        </div>
+
+        <div id="area-beneficiario" class="hidden">
+            <div class="section-title">Destinatario</div>
+            <div class="row">
+              <div class="col form-group">
+                <label>Conto Ben.</label>
+                <select id="contoBen"></select>
+              </div>
+              <div class="col form-group">
+                <label>Beneficiario</label>
+                <select id="beneficiario"></select>
+              </div>
+            </div>
+        </div>
+
+        <div class="form-group" id="group-note">
+          <label>Note</label>
+          <textarea id="note" rows="2"></textarea>
+        </div>
+
+        <div id="btn-group-main">
+           <button type="button" onclick="submitForm(false)" id="btnSave" class="save-btn btn-entrate">Salva</button>
+        </div>
+
+        <div id="btn-group-risparmi" class="row hidden">
+           <button type="button" onclick="submitForm(false)" class="save-btn btn-versa col">VERSA (+)</button>
+           <button type="button" onclick="submitForm(true)" class="save-btn btn-preleva col">PRELEVA (-)</button>
+        </div>
+        
+        <div id="btn-group-macchina" class="row hidden">
+           <button type="button" onclick="submitForm(true)" class="save-btn btn-macchina-primo col">Primo (0)</button>
+           <button type="button" onclick="submitForm(false)" class="save-btn btn-macchina-std col">Riforn. (+1)</button>
+        </div>
+
+        <div id="status"></div>
+      </form>
+    </div>
+
+    <script>
+        // INCOLLA QUI SOTTO L'URL CHE TI HA DATO GOOGLE SCRIPT (Web App URL)
+        const API_URL = "https://script.google.com/macros/s/AKfycbydanu0uNyIcMEv3AXVHVqP_QsiofUd-Ks0VTcFVeI94yHOt3dJu7yQicoe63WkzmI8-g/exec"; 
+    </script>
+    <script src="app.js"></script>
+    
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+      }
+    </script>
+</body>
+</html>

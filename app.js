@@ -1,6 +1,6 @@
 var currentMode = 'entrate';
 var allData = {}; 
-var speseList = []; // Qui salviamo la lista spese
+var speseList = []; 
 
 window.onload = function() {
     document.getElementById('data').valueAsDate = new Date();
@@ -8,7 +8,8 @@ window.onload = function() {
     // Inizializza Filtri Lista
     initFiltri();
     
-    loadData(); // Carica dropdown
+    // Carica Dati Dropdown (Smart)
+    loadDataSmart();
     
     // Gestione input Euro
     document.getElementById('importo').addEventListener('input', function(e) {
@@ -38,66 +39,117 @@ function initFiltri() {
     }
 }
 
-function loadData() {
-    document.getElementById('status').innerText = "Caricamento...";
-    fetch(API_URL + "?action=getDropdownData")
+// --- NUOVA FUNZIONE LOAD DATA SMART (DROPDOWN) ---
+function loadDataSmart() {
+    var status = document.getElementById('status');
+    status.innerText = "Avvio...";
+
+    // 1. Recupera da Cache Locale
+    var cachedDrop = localStorage.getItem("dropdown_data");
+    var cachedVer = localStorage.getItem("dropdown_ver") || "0";
+
+    // Se ho dati locali, li uso SUBITO
+    if (cachedDrop) {
+        allData = JSON.parse(cachedDrop);
+        populateUI(allData);
+        // Resetta ID Entrata/Spesa che potrebbero essere vecchi, 
+        // li aggiorneremo se il server risponde, altrimenti usiamo quelli salvati
+    }
+
+    // 2. Controllo aggiornamenti Server
+    fetch(API_URL + "?action=getDropdownSmart&v=" + cachedVer)
     .then(res => res.json())
-    .then(data => {
-        allData = data;
-        populateUI(data);
-        document.getElementById('status').innerText = "";
+    .then(resp => {
+        if (resp.updateNeeded) {
+            // Nuovi dati!
+            allData = resp.data;
+            localStorage.setItem("dropdown_data", JSON.stringify(allData));
+            localStorage.setItem("dropdown_ver", resp.version);
+            
+            // Ripopola UI con i nuovi dati
+            // Nota: populateUI resetta i menu, quindi va bene richiamarla
+            populateUI(allData);
+            status.innerText = "";
+        } else {
+            // Nessuna novità sui dropdown, ma devo aggiornare gli ID correnti (Entrata/Spesa)
+            // perché quelli cambiano spesso mentre le categorie no.
+            // Dato che allData è già popolato dalla cache, aggiorno solo gli ID se necessario.
+            // In questa versione semplificata, usiamo gli ID che avevamo in cache.
+            // Se vuoi ID sempre freschi, dovremmo fare una chiamata leggera solo per gli ID.
+            // Ma per ora va bene così: se l'ID è vecchio, il server comunque lo corregge al salvataggio (lo script usa A2).
+            status.innerText = "";
+        }
+        
+        // Aggiorna visivamente gli ID nella form
+        if(currentMode === 'entrate') document.getElementById('idAuto').value = allData.idEntrata;
+        if(currentMode === 'spese') document.getElementById('idAuto').value = allData.idSpesa;
     })
-    .catch(err => document.getElementById('status').innerText = "Errore conn.");
+    .catch(err => {
+        console.log("Offline dropdown", err);
+        status.innerText = "";
+        // Se siamo offline, usiamo la cache caricata al punto 1.
+    });
 }
 
 function populateUI(data) {
-    let addOpt = (selId, val, txt) => {
-        let opt = document.createElement("option"); opt.value = val; opt.text = txt || val;
-        document.getElementById(selId).add(opt);
+    // Helper per pulire e aggiungere
+    let resetAndAdd = (selId, items, isObj = false) => {
+        let el = document.getElementById(selId);
+        el.innerHTML = ""; // Pulisce
+        items.forEach(i => {
+             let val = isObj ? i : i; // Semplice stringa
+             let txt = isObj ? i : i;
+             if(isObj && i.length > 1) { val = i[0]; txt = i[1] || i[0]; } // Caso categorie [[id, nome]]
+             el.add(new Option(txt, val));
+        });
     };
+    
+    // NOTA: populateUI viene chiamata due volte (cache e poi rete).
+    // Dobbiamo assicurarci di non duplicare le opzioni.
+    // Il metodo resetAndAdd sopra pulisce (innerHTML="") prima di aggiungere.
 
-    data.accounts.forEach(acc => { addOpt('conto', acc); addOpt('contoBen', acc); });
-    ["Felice", ...data.users.filter(u => u!=="Felice")].forEach(u => { addOpt('utente', u); addOpt('beneficiario', u); });
+    resetAndAdd('conto', data.accounts);
+    resetAndAdd('contoBen', data.accounts);
+    
+    let userList = ["Felice", ...data.users.filter(u => u!=="Felice")];
+    resetAndAdd('utente', userList);
+    resetAndAdd('beneficiario', userList);
     document.getElementById('utente').value = "Felice";
-    data.cars.forEach(c => addOpt('macchina', c));
+    
+    resetAndAdd('macchina', data.cars);
 
-    switchTab('entrate'); 
+    switchTab(currentMode); // Ridisegna la tab corrente con i dati caricati
 }
 
-// --- LOGICA LISTA SPESE SMART ---
 function loadSpeseList() {
     var loader = document.getElementById("loader-lista");
     loader.classList.remove('hidden');
     loader.innerText = "Verifica aggiornamenti...";
 
-    // 1. Carica Cache
     var cachedData = localStorage.getItem("spese_data");
     var cachedVer = localStorage.getItem("spese_ver") || "0";
     
     if (cachedData) {
         speseList = JSON.parse(cachedData);
-        renderTable(); // Mostra subito quello che ha
+        renderTable(); 
     }
 
-    // 2. Chiedi al server
     fetch(API_URL + "?action=getSpeseSmart&v=" + cachedVer)
     .then(res => res.json())
     .then(resp => {
         if (resp.updateNeeded) {
-            // Nuovi dati trovati!
             speseList = resp.list;
             localStorage.setItem("spese_data", JSON.stringify(speseList));
             localStorage.setItem("spese_ver", resp.version);
-            renderTable(); // Aggiorna tabella
+            renderTable(); 
             loader.innerText = "Aggiornato!";
         } else {
-            loader.innerText = ""; // Nessuna novità
+            loader.innerText = ""; 
         }
         setTimeout(() => loader.classList.add('hidden'), 1500);
     })
     .catch(err => {
-        console.log(err);
-        loader.innerText = "Offline (Uso dati locali)";
+        loader.innerText = "Offline";
     });
 }
 
@@ -107,34 +159,25 @@ function renderTable() {
     
     var mese = document.getElementById("filtroMese").value;
     var anno = document.getElementById("filtroAnno").value;
-    
-    // Mappa Mesi per convertire il numero mese (01) in nome (Gennaio)
     var mesiMap = {"01":"Gennaio", "02":"Febbraio", "03":"Marzo", "04":"Aprile", "05":"Maggio", "06":"Giugno", "07":"Luglio", "08":"Agosto", "09":"Settembre", "10":"Ottobre", "11":"Novembre", "12":"Dicembre"};
 
-    // 1. FILTRO (Anno e Mese)
     var filtered = speseList.filter(r => {
-        var parts = r.data.split('/'); // Es: 15/01/2025
+        var parts = r.data.split('/'); 
         if(parts.length < 3) return false;
-        
-        var y = parts[2]; // Anno
-        var mNum = parts[1]; // Mese numero
-        var mName = mesiMap[mNum]; // Mese nome
-        
+        var y = parts[2]; 
+        var mNum = parts[1]; 
+        var mName = mesiMap[mNum]; 
         return y === anno && mName === mese;
     });
 
-    // 2. ORDINAMENTO (Dalla più recente alla meno recente)
     filtered.sort((a, b) => {
-        // Converto dd/mm/yyyy in oggetto Date per confrontarli
         var da = a.data.split('/');
         var db = b.data.split('/');
         var dateA = new Date(da[2], da[1]-1, da[0]);
         var dateB = new Date(db[2], db[1]-1, db[0]);
-        
-        return dateB - dateA; // B - A mette prima le date più recenti
+        return dateB - dateA; 
     });
 
-    // 3. VISUALIZZAZIONE
     if (filtered.length === 0) {
         tbody.innerHTML = "<tr><td colspan='4' class='empty-msg'>Nessuna spesa trovata.</td></tr>";
         return;
@@ -142,14 +185,10 @@ function renderTable() {
 
     filtered.forEach(r => {
         var tr = document.createElement("tr");
-        
-        // GESTIONE CHECKBOX (TRUE/FALSE)
         var rimborsoHtml = "";
-        // Convertiamo in stringa e maiuscolo per sicurezza (gestisce true, "TRUE", "True")
         if(String(r.rimborso).toUpperCase() === "TRUE") {
             rimborsoHtml = `<br><span class="badge-rimborso">RIMBORSO</span>`;
         }
-        
         tr.innerHTML = `
             <td>${r.id}</td>
             <td>${r.data.substring(0,5)}</td>
@@ -163,12 +202,10 @@ function renderTable() {
         tbody.appendChild(tr);
     });
 }
-// ----------------------------
 
 function switchTab(mode) {
     currentMode = mode;
     
-    // Gestione visuale LISTA
     if (mode === 'lista') {
         document.getElementById('area-lista').classList.remove('hidden');
         document.getElementById('area-input').classList.add('hidden');
@@ -176,22 +213,20 @@ function switchTab(mode) {
         document.getElementById('btn-group-risparmi').classList.add('hidden');
         document.getElementById('btn-group-macchina').classList.add('hidden');
         
-        // Attiva Bottone
         document.querySelectorAll('.tab-btn').forEach(b => b.className = 'tab-btn');
-        document.querySelector('.tab-btn[onclick="switchTab(\'lista\')"]').classList.add('active-spese'); // Uso rosso spese
+        document.querySelector('.tab-btn[onclick="switchTab(\'lista\')"]').classList.add('active-spese');
         
-        loadSpeseList(); // <--- CARICA DATI
+        loadSpeseList(); 
         return;
     }
     
-    // Gestione visuale NORMALE (Input)
     document.getElementById('area-lista').classList.add('hidden');
     document.getElementById('area-input').classList.remove('hidden');
 
     let map = {
         'entrate': { show: ['group-subcat', 'group-idRif', 'area-categorie', 'area-dettagli'], hide: ['group-rimborso', 'area-macchina', 'area-beneficiario'], btn: 'btn-group-main', class: 'btn-entrate' },
         'spese': { show: ['group-subcat', 'group-rimborso', 'area-categorie', 'area-dettagli'], hide: ['group-idRif', 'area-macchina', 'area-beneficiario'], btn: 'btn-group-main', class: 'btn-spese' },
-        'risparmi': { show: ['area-dettagli'], hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-macchina', 'area-beneficiario'], btn: 'btn-group-risparmi', class: 'btn-risparmi', cats: allData.saveCategories },
+        'risparmi': { show: ['area-dettagli'], hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-macchina', 'area-beneficiario'], btn: 'btn-group-risparmi', class: 'btn-risparmi', cats: allData.saveCategories || [] },
         'trasferimenti': { show: ['area-beneficiario'], hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-categorie', 'area-macchina'], btn: 'btn-group-main', class: 'btn-trasferimenti' },
         'macchina': { show: ['area-macchina'], hide: ['row-ids', 'area-categorie', 'area-dettagli', 'group-note', 'group-rimborso'], btn: 'btn-group-macchina', class: 'btn-macchina-std' }
     };
@@ -209,13 +244,14 @@ function switchTab(mode) {
     document.getElementById(conf.btn).classList.remove('hidden');
     
     let catSel = document.getElementById('categoria');
+    // Non resettiamo innerHTML qui se non cambia la lista, ma per sicurezza nel cambio tab rigeneriamo
     catSel.innerHTML = '<option value="" disabled selected>Seleziona</option>';
     
-    if(mode === 'risparmi') conf.cats.forEach(c => addOpt('categoria', c));
-    else if(['entrate','spese'].includes(mode)) allData.categories.forEach(c => addOpt('categoria', c[0], c[1]));
+    if(mode === 'risparmi') (conf.cats || []).forEach(c => addOpt('categoria', c));
+    else if(['entrate','spese'].includes(mode)) (allData.categories || []).forEach(c => addOpt('categoria', c[0], c[1]));
 
-    if(mode === 'entrate') document.getElementById('idAuto').value = allData.idEntrata;
-    if(mode === 'spese') document.getElementById('idAuto').value = allData.idSpesa;
+    if(mode === 'entrate') document.getElementById('idAuto').value = allData.idEntrata || "";
+    if(mode === 'spese') document.getElementById('idAuto').value = allData.idSpesa || "";
 
     let activeBtn = document.querySelector(`.tab-btn[onclick="switchTab('${mode}')"]`);
     if(activeBtn) activeBtn.classList.add('active-' + mode);
@@ -227,10 +263,11 @@ function switchTab(mode) {
 
 function onCategoryChange() {
     let catSel = document.getElementById('categoria');
+    if(catSel.selectedIndex < 0) return;
     document.getElementById('categoriaText').value = catSel.options[catSel.selectedIndex].text;
     let subSel = document.getElementById('sottocategoria');
     subSel.innerHTML = "";
-    let subs = allData.subCategories.filter(r => r[1] == catSel.value);
+    let subs = (allData.subCategories || []).filter(r => r[1] == catSel.value);
     if(subs.length === 0) subSel.add(new Option("Nessuna", ""));
     else subs.forEach(s => subSel.add(new Option(s[0], s[0])));
 }
@@ -278,14 +315,12 @@ function submitForm(param1) {
         document.getElementById('status').innerText = "✅ Dati inviati!";
         document.getElementById('status').style.color = "green";
         
-        // Pulizia Campi
         document.getElementById('importo').value = "";
         document.getElementById('note').value = "";
         document.getElementById('idRif').value = "";
         document.getElementById('kmQuadro').value = "";
         document.getElementById('prezzoLitro').value = "";
         
-        // Incremento ID manuale
         let idField = document.getElementById('idAuto');
         if(idField.value && !isNaN(idField.value)) {
             idField.value = parseInt(idField.value) + 1;

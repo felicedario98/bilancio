@@ -108,34 +108,33 @@ function renderTable() {
     var mese = document.getElementById("filtroMese").value;
     var anno = document.getElementById("filtroAnno").value;
     
-    // Filtra lato Client
-    var filtered = speseList.filter(r => {
-        // La data dal server arriva come GG/MM/AAAA.
-        // Estraiamo mese e anno dalla stringa data o controlliamo se c'è un campo mese nel json
-        // Nel GS ho mappato solo la data. Facciamo parsing semplice.
-        var parts = r.data.split('/'); 
-        // parts[1] è mese numerico (01, 02..). Converto in nome? 
-        // Meglio: Nel GS il json non ha il nome mese. 
-        // Trucco: filtro per sottostringa o uso un helper.
-        // Poiché il GS restituisce "dd/MM/yyyy", dobbiamo fare attenzione.
-        // Soluzione: modifica GS per restituire anche il nome mese, OPPURE gestiamo qui.
-        // Per semplicità, controlliamo se la stringa data contiene l'anno.
-        return r.data.endsWith(anno); 
-        // Nota: Filtrare per Mese (Nome) richiederebbe di convertire "01" in "Gennaio".
-        // Per ora mostro tutto l'anno, oppure implementiamo un check mese veloce.
-    });
-
-    // Filtro Mese preciso:
+    // Mappa Mesi per convertire il numero mese (01) in nome (Gennaio)
     var mesiMap = {"01":"Gennaio", "02":"Febbraio", "03":"Marzo", "04":"Aprile", "05":"Maggio", "06":"Giugno", "07":"Luglio", "08":"Agosto", "09":"Settembre", "10":"Ottobre", "11":"Novembre", "12":"Dicembre"};
-    
-    filtered = filtered.filter(r => {
-       var parts = r.data.split('/'); // 15/01/2025
-       if(parts.length < 3) return false;
-       var mNum = parts[1];
-       var mName = mesiMap[mNum];
-       return mName === mese;
+
+    // 1. FILTRO (Anno e Mese)
+    var filtered = speseList.filter(r => {
+        var parts = r.data.split('/'); // Es: 15/01/2025
+        if(parts.length < 3) return false;
+        
+        var y = parts[2]; // Anno
+        var mNum = parts[1]; // Mese numero
+        var mName = mesiMap[mNum]; // Mese nome
+        
+        return y === anno && mName === mese;
     });
 
+    // 2. ORDINAMENTO (Dalla più recente alla meno recente)
+    filtered.sort((a, b) => {
+        // Converto dd/mm/yyyy in oggetto Date per confrontarli
+        var da = a.data.split('/');
+        var db = b.data.split('/');
+        var dateA = new Date(da[2], da[1]-1, da[0]);
+        var dateB = new Date(db[2], db[1]-1, db[0]);
+        
+        return dateB - dateA; // B - A mette prima le date più recenti
+    });
+
+    // 3. VISUALIZZAZIONE
     if (filtered.length === 0) {
         tbody.innerHTML = "<tr><td colspan='4' class='empty-msg'>Nessuna spesa trovata.</td></tr>";
         return;
@@ -144,8 +143,10 @@ function renderTable() {
     filtered.forEach(r => {
         var tr = document.createElement("tr");
         
+        // GESTIONE CHECKBOX (TRUE/FALSE)
         var rimborsoHtml = "";
-        if(r.rimborso && r.rimborso.toLowerCase().includes("si")) {
+        // Convertiamo in stringa e maiuscolo per sicurezza (gestisce true, "TRUE", "True")
+        if(String(r.rimborso).toUpperCase() === "TRUE") {
             rimborsoHtml = `<br><span class="badge-rimborso">RIMBORSO</span>`;
         }
         

@@ -185,10 +185,18 @@ function renderTable() {
 
     filtered.forEach(r => {
         var tr = document.createElement("tr");
+        
         var rimborsoHtml = "";
         if(String(r.rimborso).toUpperCase() === "TRUE") {
             rimborsoHtml = `<br><span class="badge-rimborso">RIMBORSO</span>`;
         }
+
+        // --- CORREZIONE DOPPIO EURO ---
+        // 1. Prendo l'importo che arriva dal foglio (es: "€ 1.000,00" o "1000")
+        var rawImporto = r.importo.toString();
+        // 2. Tolgo il simbolo € se c'è già, e tolgo gli spazi vuoti
+        var importoPulito = rawImporto.replace('€', '').trim();
+        
         tr.innerHTML = `
             <td>${r.id}</td>
             <td>${r.data.substring(0,5)}</td>
@@ -197,7 +205,7 @@ function renderTable() {
                 <span style="color:#666; font-size:11px;">${r.sottocategoria}</span>
                 ${rimborsoHtml}
             </td>
-            <td class="col-importo">${r.importo} €</td>
+            <td class="col-importo">€ ${importoPulito}</td>
         `;
         tbody.appendChild(tr);
     });

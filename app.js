@@ -3,15 +3,16 @@ var allData = {};
 var speseList = []; 
 
 window.onload = function() {
+    // Imposta data odierna
     document.getElementById('data').valueAsDate = new Date();
     
-    // Inizializza Filtri Lista
+    // Inizializza i filtri della lista (Mese/Anno)
     initFiltri();
     
-    // Carica Dati Dropdown (Smart)
+    // Carica i menu a tendina (Cache + Rete)
     loadDataSmart();
     
-    // Gestione input Euro
+    // Gestione input Euro (sostituisce punto con virgola mentre scrivi, solo estetico)
     document.getElementById('importo').addEventListener('input', function(e) {
         let val = e.target.value.replace('.', ',').replace(/[^0-9,]/g, '');
         if ((val.match(/,/g) || []).length > 1) val = val.substring(0, val.lastIndexOf(','));
@@ -39,88 +40,80 @@ function initFiltri() {
     }
 }
 
-// --- NUOVA FUNZIONE LOAD DATA SMART (DROPDOWN) ---
+// ----------------------------------------------------
+// GESTIONE DATI SMART (DROPDOWN)
+// ----------------------------------------------------
 function loadDataSmart() {
     var status = document.getElementById('status');
     status.innerText = "Avvio...";
 
-    // 1. Recupera da Cache Locale
+    // 1. Cache Locale
     var cachedDrop = localStorage.getItem("dropdown_data");
     var cachedVer = localStorage.getItem("dropdown_ver") || "0";
 
-    // Se ho dati locali, li uso SUBITO
     if (cachedDrop) {
         allData = JSON.parse(cachedDrop);
         populateUI(allData);
-        // Resetta ID Entrata/Spesa che potrebbero essere vecchi, 
-        // li aggiorneremo se il server risponde, altrimenti usiamo quelli salvati
     }
 
-    // 2. Controllo aggiornamenti Server
+    // 2. Controllo Server
     fetch(API_URL + "?action=getDropdownSmart&v=" + cachedVer)
     .then(res => res.json())
     .then(resp => {
         if (resp.updateNeeded) {
-            // Nuovi dati!
             allData = resp.data;
             localStorage.setItem("dropdown_data", JSON.stringify(allData));
             localStorage.setItem("dropdown_ver", resp.version);
-            
-            // Ripopola UI con i nuovi dati
-            // Nota: populateUI resetta i menu, quindi va bene richiamarla
             populateUI(allData);
             status.innerText = "";
         } else {
-            // Nessuna novità sui dropdown, ma devo aggiornare gli ID correnti (Entrata/Spesa)
-            // perché quelli cambiano spesso mentre le categorie no.
-            // Dato che allData è già popolato dalla cache, aggiorno solo gli ID se necessario.
-            // In questa versione semplificata, usiamo gli ID che avevamo in cache.
-            // Se vuoi ID sempre freschi, dovremmo fare una chiamata leggera solo per gli ID.
-            // Ma per ora va bene così: se l'ID è vecchio, il server comunque lo corregge al salvataggio (lo script usa A2).
             status.innerText = "";
         }
         
-        // Aggiorna visivamente gli ID nella form
-        if(currentMode === 'entrate') document.getElementById('idAuto').value = allData.idEntrata;
-        if(currentMode === 'spese') document.getElementById('idAuto').value = allData.idSpesa;
+        // Aggiorna gli ID visuali se presenti
+        if(currentMode === 'entrate' && allData.idEntrata) document.getElementById('idAuto').value = allData.idEntrata;
+        if(currentMode === 'spese' && allData.idSpesa) document.getElementById('idAuto').value = allData.idSpesa;
     })
     .catch(err => {
         console.log("Offline dropdown", err);
         status.innerText = "";
-        // Se siamo offline, usiamo la cache caricata al punto 1.
     });
 }
 
 function populateUI(data) {
-    // Helper per pulire e aggiungere
     let resetAndAdd = (selId, items, isObj = false) => {
         let el = document.getElementById(selId);
-        el.innerHTML = ""; // Pulisce
+        if(!el) return;
+        el.innerHTML = ""; 
         items.forEach(i => {
-             let val = isObj ? i : i; // Semplice stringa
+             let val = isObj ? i : i; 
              let txt = isObj ? i : i;
-             if(isObj && i.length > 1) { val = i[0]; txt = i[1] || i[0]; } // Caso categorie [[id, nome]]
+             if(isObj && i.length > 1) { val = i[0]; txt = i[1] || i[0]; } 
              el.add(new Option(txt, val));
         });
     };
-    
-    // NOTA: populateUI viene chiamata due volte (cache e poi rete).
-    // Dobbiamo assicurarci di non duplicare le opzioni.
-    // Il metodo resetAndAdd sopra pulisce (innerHTML="") prima di aggiungere.
 
-    resetAndAdd('conto', data.accounts);
-    resetAndAdd('contoBen', data.accounts);
+    if(data.accounts) {
+        resetAndAdd('conto', data.accounts);
+        resetAndAdd('contoBen', data.accounts);
+    }
     
-    let userList = ["Felice", ...data.users.filter(u => u!=="Felice")];
-    resetAndAdd('utente', userList);
-    resetAndAdd('beneficiario', userList);
-    document.getElementById('utente').value = "Felice";
+    if(data.users) {
+        let userList = ["Felice", ...data.users.filter(u => u!=="Felice")];
+        resetAndAdd('utente', userList);
+        resetAndAdd('beneficiario', userList);
+        document.getElementById('utente').value = "Felice";
+    }
     
-    resetAndAdd('macchina', data.cars);
+    if(data.cars) resetAndAdd('macchina', data.cars);
 
-    switchTab(currentMode); // Ridisegna la tab corrente con i dati caricati
+    // Ricarica la tab corrente per applicare le categorie giuste
+    switchTab(currentMode); 
 }
 
+// ----------------------------------------------------
+// GESTIONE LISTA SPESE (SMART LIST)
+// ----------------------------------------------------
 function loadSpeseList() {
     var loader = document.getElementById("loader-lista");
     loader.classList.remove('hidden');
@@ -161,6 +154,7 @@ function renderTable() {
     var anno = document.getElementById("filtroAnno").value;
     var mesiMap = {"01":"Gennaio", "02":"Febbraio", "03":"Marzo", "04":"Aprile", "05":"Maggio", "06":"Giugno", "07":"Luglio", "08":"Agosto", "09":"Settembre", "10":"Ottobre", "11":"Novembre", "12":"Dicembre"};
 
+    // 1. FILTRO
     var filtered = speseList.filter(r => {
         var parts = r.data.split('/'); 
         if(parts.length < 3) return false;
@@ -170,6 +164,7 @@ function renderTable() {
         return y === anno && mName === mese;
     });
 
+    // 2. ORDINAMENTO (Data più recente in alto)
     filtered.sort((a, b) => {
         var da = a.data.split('/');
         var db = b.data.split('/');
@@ -183,20 +178,23 @@ function renderTable() {
         return;
     }
 
+    // 3. RENDER
     filtered.forEach(r => {
         var tr = document.createElement("tr");
         
+        // Click per modificare
+        tr.onclick = function() { preparaModifica(r.id); };
+        tr.style.cursor = "pointer";
+
         var rimborsoHtml = "";
         if(String(r.rimborso).toUpperCase() === "TRUE") {
             rimborsoHtml = `<br><span class="badge-rimborso">RIMBORSO</span>`;
         }
 
-        // --- CORREZIONE DOPPIO EURO ---
-        // 1. Prendo l'importo che arriva dal foglio (es: "€ 1.000,00" o "1000")
+        // Pulizia Importo visuale
         var rawImporto = r.importo.toString();
-        // 2. Tolgo il simbolo € se c'è già, e tolgo gli spazi vuoti
         var importoPulito = rawImporto.replace('€', '').trim();
-        
+
         tr.innerHTML = `
             <td>${r.id}</td>
             <td>${r.data.substring(0,5)}</td>
@@ -211,9 +209,63 @@ function renderTable() {
     });
 }
 
+// ----------------------------------------------------
+// LOGICA MODIFICA SPESA
+// ----------------------------------------------------
+function preparaModifica(id) {
+    var spesa = speseList.find(s => s.id == id);
+    if(!spesa) return;
+
+    if(!confirm("Vuoi modificare la spesa ID " + id + "?")) return;
+
+    // Setta ID nascosto
+    document.getElementById('idModifica').value = id;
+
+    // Data: da dd/MM/yyyy a yyyy-MM-dd
+    var parts = spesa.data.split('/'); 
+    if(parts.length === 3) {
+        document.getElementById('data').value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    // Importo: via € e punti, rimane virgola decimale se c'è
+    var imp = spesa.importo.replace('€', '').trim().replace(/\./g, ''); 
+    document.getElementById('importo').value = imp;
+
+    // Categoria
+    var catSelect = document.getElementById('categoria');
+    for(var i=0; i<catSelect.options.length; i++) {
+        if(catSelect.options[i].text === spesa.categoria) {
+            catSelect.selectedIndex = i;
+            break;
+        }
+    }
+    document.getElementById('categoriaText').value = spesa.categoria;
+    
+    // Trigger cambio categoria per popolare le sottocategorie
+    onCategoryChange(); 
+    
+    // Sottocategoria
+    document.getElementById('sottocategoria').value = spesa.sottocategoria;
+
+    // Rimborso
+    var isRimb = String(spesa.rimborso).toUpperCase() === "TRUE";
+    document.getElementById('daRimborsare').value = isRimb ? "SI" : "NO";
+
+    // UI Modifica
+    var btn = document.getElementById('btnSave');
+    btn.innerText = "AGGIORNA SPESA";
+    btn.style.backgroundColor = "#ff9800"; 
+    
+    switchTab('spese');
+}
+
+// ----------------------------------------------------
+// UI TABS E FORM
+// ----------------------------------------------------
 function switchTab(mode) {
     currentMode = mode;
     
+    // LISTA
     if (mode === 'lista') {
         document.getElementById('area-lista').classList.remove('hidden');
         document.getElementById('area-input').classList.add('hidden');
@@ -228,8 +280,18 @@ function switchTab(mode) {
         return;
     }
     
+    // INPUT NORMALE
     document.getElementById('area-lista').classList.add('hidden');
     document.getElementById('area-input').classList.remove('hidden');
+
+    // Reset se stavo modificando e cambio tab (opzionale, ma pulito)
+    if(mode !== 'spese' && document.getElementById('idModifica').value) {
+         document.getElementById('idModifica').value = "";
+         document.getElementById('btnSave').innerText = "Salva";
+         document.getElementById('btnSave').style.backgroundColor = "";
+         document.getElementById('mainForm').reset();
+         document.getElementById('data').valueAsDate = new Date();
+    }
 
     let map = {
         'entrate': { show: ['group-subcat', 'group-idRif', 'area-categorie', 'area-dettagli'], hide: ['group-rimborso', 'area-macchina', 'area-beneficiario'], btn: 'btn-group-main', class: 'btn-entrate' },
@@ -252,21 +314,23 @@ function switchTab(mode) {
     document.getElementById(conf.btn).classList.remove('hidden');
     
     let catSel = document.getElementById('categoria');
-    // Non resettiamo innerHTML qui se non cambia la lista, ma per sicurezza nel cambio tab rigeneriamo
     catSel.innerHTML = '<option value="" disabled selected>Seleziona</option>';
     
     if(mode === 'risparmi') (conf.cats || []).forEach(c => addOpt('categoria', c));
     else if(['entrate','spese'].includes(mode)) (allData.categories || []).forEach(c => addOpt('categoria', c[0], c[1]));
 
     if(mode === 'entrate') document.getElementById('idAuto').value = allData.idEntrata || "";
-    if(mode === 'spese') document.getElementById('idAuto').value = allData.idSpesa || "";
+    if(mode === 'spese' && !document.getElementById('idModifica').value) document.getElementById('idAuto').value = allData.idSpesa || "";
 
     let activeBtn = document.querySelector(`.tab-btn[onclick="switchTab('${mode}')"]`);
     if(activeBtn) activeBtn.classList.add('active-' + mode);
     
     let btnSave = document.getElementById('btnSave');
-    btnSave.className = `save-btn ${conf.class}`;
-    btnSave.innerText = mode === 'trasferimenti' ? "Giroconto" : "Salva";
+    if(!document.getElementById('idModifica').value) {
+        btnSave.className = `save-btn ${conf.class}`;
+        btnSave.innerText = mode === 'trasferimenti' ? "Giroconto" : "Salva";
+        btnSave.style.backgroundColor = ""; 
+    }
 }
 
 function onCategoryChange() {
@@ -280,8 +344,14 @@ function onCategoryChange() {
     else subs.forEach(s => subSel.add(new Option(s[0], s[0])));
 }
 
-function addOpt(id, val, txt) { document.getElementById(id).add(new Option(txt||val, val)); }
+function addOpt(id, val, txt) { 
+    let el = document.getElementById(id);
+    if(el) el.add(new Option(txt||val, val)); 
+}
 
+// ----------------------------------------------------
+// INVIO DATI
+// ----------------------------------------------------
 function submitForm(param1) {
     if(!document.getElementById('mainForm').checkValidity()){
         document.getElementById('status').innerText = "Compila tutti i campi!";
@@ -291,11 +361,17 @@ function submitForm(param1) {
 
     let form = {
         action: 'save' + currentMode.charAt(0).toUpperCase() + currentMode.slice(1),
+        idModifica: document.getElementById('idModifica').value,
         idRif: document.getElementById('idRif').value,
         data: document.getElementById('data').value,
         categoriaText: document.getElementById('categoriaText').value,
         sottocategoria: document.getElementById('sottocategoria').value,
+        
+        // GESTIONE DECIMALI: Sostituisco virgola con punto per il server
         importo: document.getElementById('importo').value.replace(',', '.'), 
+        kmQuadro: document.getElementById('kmQuadro').value.replace(',', '.'),
+        prezzoLitro: document.getElementById('prezzoLitro').value.replace(',', '.'),
+        
         conto: document.getElementById('conto').value,
         utente: document.getElementById('utente').value,
         note: document.getElementById('note').value,
@@ -303,8 +379,6 @@ function submitForm(param1) {
         contoBen: document.getElementById('contoBen').value,
         beneficiario: document.getElementById('beneficiario').value,
         macchina: document.getElementById('macchina').value,
-        kmQuadro: document.getElementById('kmQuadro').value,
-        prezzoLitro: document.getElementById('prezzoLitro').value,
         isPrimo: param1
     };
     
@@ -320,20 +394,31 @@ function submitForm(param1) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
     }).then(() => {
-        document.getElementById('status').innerText = "✅ Dati inviati!";
+        document.getElementById('status').innerText = "✅ Eseguito!";
         document.getElementById('status').style.color = "green";
         
+        // Pulizia Campi Base
         document.getElementById('importo').value = "";
         document.getElementById('note').value = "";
         document.getElementById('idRif').value = "";
         document.getElementById('kmQuadro').value = "";
         document.getElementById('prezzoLitro').value = "";
         
-        let idField = document.getElementById('idAuto');
-        if(idField.value && !isNaN(idField.value)) {
-            idField.value = parseInt(idField.value) + 1;
-            if(currentMode === 'entrate') allData.idEntrata++;
-            if(currentMode === 'spese') allData.idSpesa++;
+        // Gestione Reset ID Modifica
+        if(document.getElementById('idModifica').value) {
+            document.getElementById('idModifica').value = "";
+            document.getElementById('btnSave').innerText = "Salva";
+            document.getElementById('btnSave').style.backgroundColor = ""; 
+            // Torna in modalità normale
+            if(currentMode === 'spese') document.getElementById('idAuto').value = allData.idSpesa;
+        } else {
+            // Se era inserimento nuovo, incrementa ID visuale
+            let idField = document.getElementById('idAuto');
+            if(idField.value && !isNaN(idField.value)) {
+                idField.value = parseInt(idField.value) + 1;
+                if(currentMode === 'entrate') allData.idEntrata++;
+                if(currentMode === 'spese') allData.idSpesa++;
+            }
         }
 
         setTimeout(() => {

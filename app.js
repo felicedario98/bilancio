@@ -303,8 +303,8 @@ function submitForm(param1) {
         contoBen: document.getElementById('contoBen').value,
         beneficiario: document.getElementById('beneficiario').value,
         macchina: document.getElementById('macchina').value,
-        kmQuadro: document.getElementById('kmQuadro').value,
-        prezzoLitro: document.getElementById('prezzoLitro').value,
+        kmQuadro: document.getElementById('kmQuadro').value.replace(',', '.'),
+        prezzoLitro: document.getElementById('prezzoLitro').value.replace(',', '.'),
         isPrimo: param1
     };
     

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Finanze</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f2f2f7">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+       /* STILE AGGIUNTIVO PER TABELLA */
+       .table-container { margin-top: 15px; overflow-x: auto; }
+       table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 8px; overflow: hidden; }
+       th { background: #e0e0e0; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; }
+       td { padding: 10px; border-bottom: 1px solid #eee; }
+       tr:last-child td { border-bottom: none; }
+       .col-importo { font-weight: bold; text-align: right; color: #333; white-space: nowrap; font-size: 12px; }
+       .badge-rimborso { background: #FFF3CD; color: #856404; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #FFEeba; }
+       .filter-row { display: flex; gap: 10px; margin-bottom: 10px; }
+       .filter-row select { flex: 1; }
+       #loader-lista { text-align: center; font-size: 12px; color: #888; margin-top: 10px; font-style: italic; }
+       .empty-msg { text-align: center; color: #999; padding: 20px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="container">
+      <div class="tabs">
+        <button class="tab-btn active-entrate" onclick="switchTab('entrate')">ENTRATE</button>
+        <button class="tab-btn" onclick="switchTab('spese')">SPESE</button>
+        <button class="tab-btn" onclick="switchTab('lista')">LISTA</button>
+        <button class="tab-btn" onclick="switchTab('macchina')">MACCHINA</button>
+        <button class="tab-btn" onclick="switchTab('risparmi')">RISP.</button>
+        <button class="tab-btn" onclick="switchTab('trasferimenti')">GIRO.</button>
+      </div>
+
+      <form id="mainForm">
+        
+        <div id="area-lista" class="hidden">
+           <div class="filter-row">
+              <select id="filtroMese" onchange="renderTable()">
+                 </select>
+              <select id="filtroAnno" onchange="renderTable()">
+                 </select>
+           </div>
+           
+           <div id="loader-lista" class="hidden">Controllo aggiornamenti...</div>
+
+           <div class="table-container">
+              <table id="tabellaSpese">
+                 <thead>
+                    <tr>
+                       <th style="width:30px">ID</th>
+                       <th style="width:70px">Data</th>
+                       <th>Dettagli</th>
+                       <th style="text-align:right">€</th>
+                    </tr>
+                 </thead>
+                 <tbody id="tbodySpese"></tbody>
+              </table>
+           </div>
+        </div>
+
+        <div id="area-input">
+            <div class="row" id="row-ids">
+              <div class="col form-group">
+                <label>ID Op.</label>
+                <input type="text" id="idAuto" readonly style="background:#eee;">
+              </div>
+              <div class="col form-group" id="group-idRif">
+                <label>Rif. Spesa</label>
+                <input type="text" id="idRif">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Data</label>
+              <input type="date" id="data" required>
+            </div>
+
+            <div id="area-macchina" class="hidden">
+               <div class="form-group">
+                  <label>Macchina</label>
+                  <select id="macchina"></select>
+               </div>
+               <div class="row">
+                  <div class="col form-group">
+                     <label>KM</label>
+                     <input type="number" id="kmQuadro">
+                  </div>
+                  <div class="col form-group">
+                     <label>€/Litro</label>
+                     <input type="text" inputmode="decimal" id="prezzoLitro">
+                  </div>
+               </div>
+            </div>
+
+            <div id="area-categorie">
+                <div class="form-group">
+                  <label>Categoria</label>
+                  <select id="categoria" onchange="onCategoryChange()">
+                    <option value="" disabled selected>Caricamento...</option>
+                  </select>
+                  <input type="hidden" id="categoriaText">
+                </div>
+                <div class="form-group" id="group-subcat">
+                  <label>Sottocategoria</label>
+                  <select id="sottocategoria"><option>--</option></select>
+                </div>
+            </div>
+
+            <div class="form-group">
+              <label>Importo (€)</label>
+              <input type="text" inputmode="decimal" id="importo" class="input-euro" placeholder="0,00" required>
+            </div>
+
+            <div class="form-group hidden" id="group-rimborso">
+              <label>Rimborso?</label>
+              <select id="daRimborsare">
+                 <option value="NO" selected>No</option>
+                 <option value="SI">Si</option>
+              </select>
+            </div>
+
+            <div id="area-dettagli">
+                <div class="section-title" id="title-mittente">Dettagli</div>
+                <div class="row">
+                  <div class="col form-group">
+                    <label>Conto</label>
+                    <select id="conto" required></select>
+                  </div>
+                  <div class="col form-group">
+                    <label>Utente</label>
+                    <select id="utente"></select>
+                  </div>
+                </div>
+            </div>
+
+            <div id="area-beneficiario" class="hidden">
+                <div class="section-title">Destinatario</div>
+                <div class="row">
+                  <div class="col form-group">
+                    <label>Conto Ben.</label>
+                    <select id="contoBen"></select>
+                  </div>
+                  <div class="col form-group">
+                    <label>Beneficiario</label>
+                    <select id="beneficiario"></select>
+                  </div>
+                </div>
+            </div>
+
+            <div class="form-group" id="group-note">
+              <label>Note</label>
+              <textarea id="note" rows="2"></textarea>
+            </div>
+        </div>
+
+        <div id="btn-group-main">
+           <button type="button" onclick="submitForm(false)" id="btnSave" class="save-btn btn-entrate">Salva</button>
+        </div>
+        <div id="btn-group-risparmi" class="row hidden">
+           <button type="button" onclick="submitForm(false)" class="save-btn btn-versa col">VERSA (+)</button>
+           <button type="button" onclick="submitForm(true)" class="save-btn btn-preleva col">PRELEVA (-)</button>
+        </div>
+        <div id="btn-group-macchina" class="row hidden">
+           <button type="button" onclick="submitForm(true)" class="save-btn btn-macchina-primo col">Primo (0)</button>
+           <button type="button" onclick="submitForm(false)" class="save-btn btn-macchina-std col">Riforn. (+1)</button>
+        </div>
+
+        <div id="status"></div>
+      </form>
+    </div>
+
+    <script>
+        // Sostituisci col tuo NUOVO URL WEB APP
+        const API_URL = "https://script.google.com/macros/s/AKfycbxLEjXwgCBaj26kHWSeBIcjsSL0BUk_aWzHDS_YKw4uKZNVqANTl9tWj29z_rlM9HjFHQ/exec"; 
+    </script>
+    <script src="app.js"></script>
+    
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+      }
+    </script>
+</body>
+</html>

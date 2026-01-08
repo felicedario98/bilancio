@@ -9,16 +9,66 @@
     <meta name="theme-color" content="#f2f2f7">
     <link rel="apple-touch-icon" href="icon-192.png">
     <style>
-       /* STILE AGGIUNTIVO PER TABELLA */
+       /* STILI GENERALI */
+       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f2f2f7; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+       .container { max-width: 600px; margin: 0 auto; padding: 15px; background: #fff; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+       
+       /* TABS */
+       .tabs { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; scrollbar-width: none; }
+       .tabs::-webkit-scrollbar { display: none; }
+       .tab-btn { padding: 8px 12px; border: none; background: #e5e5ea; border-radius: 20px; font-size: 13px; font-weight: 600; color: #8e8e93; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
+       .active-entrate { background: #34c759; color: white; }
+       .active-spese { background: #ff3b30; color: white; }
+       .active-risparmi { background: #007aff; color: white; }
+       .active-trasferimenti { background: #5856d6; color: white; }
+       .active-macchina { background: #ff9500; color: white; }
+
+       /* FORM */
+       .form-group { margin-bottom: 15px; }
+       label { display: block; font-size: 12px; color: #8e8e93; margin-bottom: 5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+       input, select, textarea { width: 100%; padding: 12px; border: 1px solid #e5e5ea; border-radius: 10px; font-size: 16px; background: #f2f2f7; box-sizing: border-box; -webkit-appearance: none; }
+       input:focus, select:focus, textarea:focus { outline: none; border-color: #007aff; background: #fff; }
+       .row { display: flex; gap: 10px; }
+       .col { flex: 1; }
+       
+       /* BOTTONI */
+       .save-btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; color: white; margin-top: 10px; cursor: pointer; transition: transform 0.1s; }
+       .save-btn:active { transform: scale(0.98); }
+       .save-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+       .btn-entrate { background: #34c759; }
+       .btn-spese { background: #ff3b30; }
+       .btn-risparmi { background: #007aff; }
+       .btn-trasferimenti { background: #5856d6; }
+       .btn-versa { background: #34c759; margin-right: 5px; }
+       .btn-preleva { background: #ff3b30; margin-left: 5px; }
+       .btn-macchina-primo { background: #8e8e93; margin-right: 5px; }
+       .btn-macchina-std { background: #ff9500; margin-left: 5px; }
+
+       /* UTILS */
+       .hidden { display: none !important; }
+       .section-title { font-size: 14px; font-weight: bold; color: #333; margin: 20px 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+       #status { margin-top: 15px; text-align: center; font-weight: 500; font-size: 14px; min-height: 20px; }
+       .input-euro { font-weight: bold; color: #333; }
+
+       /* --- NUOVI STILI PER LISTA E TABELLA --- */
        .table-container { margin-top: 15px; overflow-x: auto; }
        table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 8px; overflow: hidden; }
        th { background: #e0e0e0; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; }
        td { padding: 10px; border-bottom: 1px solid #eee; }
        tr:last-child td { border-bottom: none; }
-       .col-importo { font-weight: bold; text-align: right; color: #333; white-space: nowrap; font-size: 12px; }
-       .badge-rimborso { background: #FFF3CD; color: #856404; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #FFEeba; }
+       
+       /* Correzione visualizzazione Importo */
+       .col-importo { 
+           font-weight: bold; 
+           text-align: right; 
+           color: #333; 
+           white-space: nowrap; /* Non va a capo */
+           font-size: 12px; 
+       }
+       
+       .badge-rimborso { background: #FFF3CD; color: #856404; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #FFEeba; display: inline-block; margin-top: 2px; }
        .filter-row { display: flex; gap: 10px; margin-bottom: 10px; }
-       .filter-row select { flex: 1; }
+       .filter-row select { flex: 1; padding: 8px; font-size: 14px; }
        #loader-lista { text-align: center; font-size: 12px; color: #888; margin-top: 10px; font-style: italic; }
        .empty-msg { text-align: center; color: #999; padding: 20px; font-style: italic; }
     </style>
@@ -53,7 +103,7 @@
                        <th style="width:30px">ID</th>
                        <th style="width:70px">Data</th>
                        <th>Dettagli</th>
-                       <th style="text-align:right">€</th>
+                       <th style="text-align:right">Importo</th>
                     </tr>
                  </thead>
                  <tbody id="tbodySpese"></tbody>
@@ -62,6 +112,9 @@
         </div>
 
         <div id="area-input">
+            
+            <input type="hidden" id="idModifica">
+
             <div class="row" id="row-ids">
               <div class="col form-group">
                 <label>ID Op.</label>
@@ -86,7 +139,7 @@
                <div class="row">
                   <div class="col form-group">
                      <label>KM</label>
-                     <input type="number" id="kmQuadro">
+                     <input type="text" inputmode="decimal" id="kmQuadro">
                   </div>
                   <div class="col form-group">
                      <label>€/Litro</label>
@@ -160,8 +213,8 @@
            <button type="button" onclick="submitForm(false)" id="btnSave" class="save-btn btn-entrate">Salva</button>
         </div>
         <div id="btn-group-risparmi" class="row hidden">
-           <button type="button" onclick="submitForm(false)" class="save-btn btn-versa col">VERSA (+)</button>
-           <button type="button" onclick="submitForm(true)" class="save-btn btn-preleva col">PRELEVA (-)</button>
+           <button type="button" onclick="submitForm(true)" class="save-btn btn-versa col">VERSA (+)</button>
+           <button type="button" onclick="submitForm(false)" class="save-btn btn-preleva col">PRELEVA (-)</button>
         </div>
         <div id="btn-group-macchina" class="row hidden">
            <button type="button" onclick="submitForm(true)" class="save-btn btn-macchina-primo col">Primo (0)</button>
@@ -173,15 +226,11 @@
     </div>
 
     <script>
-        // Sostituisci col tuo NUOVO URL WEB APP
+        // ⚠️ INCOLLA QUI SOTTO IL TUO LINK DI GOOGLE SCRIPT (quello che finisce con /exec)
         const API_URL = "https://script.google.com/macros/s/AKfycbzTm8ZyXojBbcjyYFwpYbCVxYc7q_U99ZaLlG-O7A-2Esd2_i_guZYaM86Q2CRFL6wWKw/exec"; 
     </script>
+    
     <script src="app.js"></script>
     
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-      }
-    </script>
-</body>
+    </body>
 </html>

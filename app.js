@@ -1,7 +1,7 @@
 // ==========================================
 // CONFIGURAZIONE & STATO
 // ==========================================
-const API_URL = "https://script.google.com/macros/s/AKfycbxmmsGwFBx0nax5TpaQhcmEw8Kkj5M4hU0HYqYBFz4FQ3Lj1MjBJE9n09Du0MZCNyRWZQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyGOFxBHor3Yd2GFv3FcsO8Vca6WjLmBKBQ1V0bU_4m_5CFeQSaB8JUGyWctKWcuRw7Bw/exec";
 
 let currentMode = 'entrate';
 let allData = {}; 

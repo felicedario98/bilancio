@@ -1,7 +1,7 @@
 // ==========================================
 // CONFIGURAZIONE & STATO
 // ==========================================
-const API_URL = "https://script.google.com/macros/s/AKfycbyGOFxBHor3Yd2GFv3FcsO8Vca6WjLmBKBQ1V0bU_4m_5CFeQSaB8JUGyWctKWcuRw7Bw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxAO7z5LpV08PZHWv-gY4HQWXwyqz6UkFrfKXZBmAyixx42TyZTt02Et-C1nUrsAYsEZg/exec";
 
 let currentMode = 'entrate';
 let allData = {}; 
@@ -44,8 +44,6 @@ function setupDecimalInput(id) {
     const el = document.getElementById(id);
     if(!el) return;
     el.addEventListener('input', function(e) {
-        // Sostituisce visualmente il punto con la virgola per l'utente italiano, 
-        // ma internamente gestiremo il replace inverso al salvataggio.
         e.target.value = e.target.value.replace('.', ',');
     });
 }
@@ -55,7 +53,6 @@ function initFiltri() {
     const selMese = document.getElementById("filtroMese");
     const today = new Date();
     
-    // Usa un fragment per performance (anche se qui sono pochi elementi)
     const fragment = document.createDocumentFragment();
     mesi.forEach((m, i) => {
         let opt = new Option(m, m);
@@ -79,10 +76,6 @@ function initFiltri() {
 // DATA LOADING (SMART CACHE)
 // ==========================================
 function loadDataSmart() {
-    const status = document.getElementById('status');
-    // status.innerText = "Avvio..."; // Rimosso per pulizia visiva
-
-    // 1. Recupera da Cache Locale con controllo errori
     let cachedDrop = localStorage.getItem("dropdown_data");
     let cachedVer = localStorage.getItem("dropdown_ver") || "0";
 
@@ -96,7 +89,6 @@ function loadDataSmart() {
         }
     }
 
-    // 2. Controllo aggiornamenti Server
     fetch(API_URL + "?action=getDropdownSmart&v=" + cachedVer)
     .then(res => res.json())
     .then(resp => {
@@ -121,12 +113,10 @@ function updateIdsVisually() {
 }
 
 function populateUI(data) {
-    // Helper per aggiungere opzioni
     const fillSelect = (selId, items, isObj = false) => {
         const el = document.getElementById(selId);
         if(!el) return;
         el.innerHTML = ""; 
-        // Optional Chaining (?.) evita crash se items è undefined
         items?.forEach(i => {
              let val = isObj ? i : i; 
              let txt = isObj ? i : i;
@@ -138,7 +128,6 @@ function populateUI(data) {
     fillSelect('conto', data.accounts);
     fillSelect('contoBen', data.accounts);
     
-    // Felice sempre primo
     let userList = ["Felice"];
     if(data.users) {
         userList = [...userList, ...data.users.filter(u => u!=="Felice")];
@@ -195,7 +184,7 @@ function renderTable() {
     const anno = document.getElementById("filtroAnno").value;
     const mesiMap = {"01":"Gennaio", "02":"Febbraio", "03":"Marzo", "04":"Aprile", "05":"Maggio", "06":"Giugno", "07":"Luglio", "08":"Agosto", "09":"Settembre", "10":"Ottobre", "11":"Novembre", "12":"Dicembre"};
 
-    // Filtra
+    // Filtra per mese e anno
     let filtered = speseList.filter(r => {
         if(!r.data) return false;
         let parts = r.data.split('/'); 
@@ -203,11 +192,19 @@ function renderTable() {
         return parts[2] === anno && mesiMap[parts[1]] === mese;
     });
 
-    // Ordina (Decrescente)
+    // --- MODIFICA ORDINAMENTO: DATA (Desc) e poi ID (Desc) ---
     filtered.sort((a, b) => {
         let da = a.data.split('/');
         let db = b.data.split('/');
-        return new Date(db[2], db[1]-1, db[0]) - new Date(da[2], da[1]-1, da[0]); 
+        
+        // 1. Confronto le date
+        let dateDiff = new Date(db[2], db[1]-1, db[0]) - new Date(da[2], da[1]-1, da[0]);
+
+        // 2. Se le date sono diverse, restituisco la differenza
+        if (dateDiff !== 0) return dateDiff;
+
+        // 3. Se le date sono uguali, ordino per ID decrescente
+        return parseInt(b.id) - parseInt(a.id);
     });
 
     if (filtered.length === 0) {
@@ -215,11 +212,15 @@ function renderTable() {
         return;
     }
 
-    // --- OTTIMIZZAZIONE RENDER (String Builder) ---
-    // Costruiamo una stringa unica invece di manipolare il DOM 100 volte
+    // --- RENDER CON NOTE ---
     const rowsHTML = filtered.map(r => {
         let rimborsoBadge = (String(r.rimborso).toUpperCase() === "TRUE") 
             ? `<br><span class="badge-rimborso">RIMBORSO</span>` 
+            : "";
+
+        // Gestione Note: visualizzate sotto la sottocategoria
+        let notaHTML = (r.note && r.note.trim() !== "") 
+            ? `<br><span style="color:#555; font-size:11px; font-style:italic;">${r.note}</span>` 
             : "";
 
         let importoPulito = r.importo.toString().replace('€', '').trim();
@@ -231,6 +232,7 @@ function renderTable() {
                 <td>
                     <b>${r.categoria}</b><br>
                     <span style="color:#666; font-size:11px;">${r.sottocategoria}</span>
+                    ${notaHTML}
                     ${rimborsoBadge}
                 </td>
                 <td class="col-importo">€ ${importoPulito}</td>
@@ -247,75 +249,37 @@ function renderTable() {
 function switchTab(mode) {
     currentMode = mode;
     
-    // Reset visuale Tabs
     document.querySelectorAll('.tab-btn').forEach(b => b.className = 'tab-btn');
     const activeBtn = document.querySelector(`.tab-btn[onclick="switchTab('${mode}')"]`);
     if(activeBtn) activeBtn.classList.add('active-' + mode);
 
-    // Gestione Vista Lista
     if (mode === 'lista') {
         document.getElementById('area-lista').classList.remove('hidden');
         document.getElementById('area-input').classList.add('hidden');
-        // Nascondi pulsanti save
         document.querySelectorAll('.save-btn-container').forEach(el => el.classList.add('hidden'));
         loadSpeseList(); 
         return;
     }
     
-    // Gestione Vista Input
     document.getElementById('area-lista').classList.add('hidden');
     document.getElementById('area-input').classList.remove('hidden');
 
-    // Mappa configurazione UI per ogni modalità
     const map = {
-        'entrate': { 
-            show: ['group-subcat', 'group-idRif', 'area-categorie', 'area-dettagli'], 
-            hide: ['group-rimborso', 'area-macchina', 'area-beneficiario'], 
-            btnId: 'btn-group-main', 
-            btnClass: 'btn-entrate',
-            btnText: 'Salva Entrata'
-        },
-        'spese': { 
-            show: ['group-subcat', 'group-rimborso', 'area-categorie', 'area-dettagli'], 
-            hide: ['group-idRif', 'area-macchina', 'area-beneficiario'], 
-            btnId: 'btn-group-main', 
-            btnClass: 'btn-spese',
-            btnText: 'Salva Spesa'
-        },
-        'risparmi': { 
-            show: ['area-dettagli'], 
-            hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-macchina', 'area-beneficiario'], 
-            btnId: 'btn-group-risparmi', 
-            cats: allData.saveCategories 
-        },
-        'trasferimenti': { 
-            show: ['area-beneficiario'], 
-            hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-categorie', 'area-macchina'], 
-            btnId: 'btn-group-main', 
-            btnClass: 'btn-trasferimenti',
-            btnText: 'Esegui Giroconto'
-        },
-        'macchina': { 
-            show: ['area-macchina'], 
-            hide: ['row-ids', 'area-categorie', 'area-dettagli', 'group-note', 'group-rimborso'], 
-            btnId: 'btn-group-macchina'
-        }
+        'entrate': { show: ['group-subcat', 'group-idRif', 'area-categorie', 'area-dettagli'], hide: ['group-rimborso', 'area-macchina', 'area-beneficiario'], btnId: 'btn-group-main', btnClass: 'btn-entrate', btnText: 'Salva Entrata' },
+        'spese': { show: ['group-subcat', 'group-rimborso', 'area-categorie', 'area-dettagli'], hide: ['group-idRif', 'area-macchina', 'area-beneficiario'], btnId: 'btn-group-main', btnClass: 'btn-spese', btnText: 'Salva Spesa' },
+        'risparmi': { show: ['area-dettagli'], hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-macchina', 'area-beneficiario'], btnId: 'btn-group-risparmi', cats: allData.saveCategories },
+        'trasferimenti': { show: ['area-beneficiario'], hide: ['group-subcat', 'group-idRif', 'group-rimborso', 'area-categorie', 'area-macchina'], btnId: 'btn-group-main', btnClass: 'btn-trasferimenti', btnText: 'Esegui Giroconto' },
+        'macchina': { show: ['area-macchina'], hide: ['row-ids', 'area-categorie', 'area-dettagli', 'group-note', 'group-rimborso'], btnId: 'btn-group-macchina' }
     };
 
     const conf = map[mode];
-    
-    // 1. Reset visibilità elementi form
     const allFormIds = ['group-subcat', 'group-idRif', 'area-categorie', 'area-dettagli', 'group-rimborso', 'area-macchina', 'area-beneficiario', 'row-ids', 'group-note'];
     allFormIds.forEach(id => document.getElementById(id)?.classList.remove('hidden'));
-    
-    // 2. Nascondi quelli specifici
     conf.hide?.forEach(id => document.getElementById(id)?.classList.add('hidden'));
 
-    // 3. Gestione Bottoni
     document.querySelectorAll('#btn-group-main, #btn-group-risparmi, #btn-group-macchina').forEach(b => b.classList.add('hidden'));
     document.getElementById(conf.btnId).classList.remove('hidden');
 
-    // 4. Popola Categorie (Reset)
     const catSel = document.getElementById('categoria');
     catSel.innerHTML = '<option value="" disabled selected>Seleziona</option>';
     
@@ -325,10 +289,8 @@ function switchTab(mode) {
         (allData.categories || []).forEach(c => catSel.add(new Option(c[1] || c[0], c[0])));
     }
 
-    // 5. Aggiorna ID visuale
     updateIdsVisually();
 
-    // 6. Stile bottone principale (se esiste)
     const btnSave = document.getElementById('btnSave');
     if(btnSave && conf.btnClass) {
         btnSave.className = `save-btn ${conf.btnClass}`;
@@ -339,23 +301,18 @@ function switchTab(mode) {
 function onCategoryChange() {
     const catSel = document.getElementById('categoria');
     if(catSel.selectedIndex < 0) return;
-    
     document.getElementById('categoriaText').value = catSel.options[catSel.selectedIndex].text;
-    
     const subSel = document.getElementById('sottocategoria');
     subSel.innerHTML = "";
-    
     const subs = (allData.subCategories || []).filter(r => r[1] == catSel.value);
-    
     if(subs.length === 0) subSel.add(new Option("Nessuna", ""));
     else subs.forEach(s => subSel.add(new Option(s[0], s[0])));
 }
 
 // ==========================================
-// SUBMIT FORM (OPTIMISTIC UI & NO-CORS FIX)
+// SUBMIT FORM (OPTIMISTIC UI)
 // ==========================================
 function submitForm(param1) {
-    // Validazione base
     if(!document.getElementById('mainForm').checkValidity()){
         const status = document.getElementById('status');
         status.innerText = "Compila i campi obbligatori!";
@@ -363,14 +320,12 @@ function submitForm(param1) {
         return;
     }
 
-    // Costruzione oggetto dati (Conversioni decimali qui!)
     let form = {
         action: 'save' + currentMode.charAt(0).toUpperCase() + currentMode.slice(1),
         idRif: document.getElementById('idRif').value,
         data: document.getElementById('data').value,
         categoriaText: document.getElementById('categoriaText').value,
         sottocategoria: document.getElementById('sottocategoria').value,
-        // Converte "1.200,50" -> "1200.50" per il server
         importo: document.getElementById('importo').value.replace(',', '.'), 
         conto: document.getElementById('conto').value,
         utente: document.getElementById('utente').value,
@@ -379,7 +334,6 @@ function submitForm(param1) {
         contoBen: document.getElementById('contoBen').value,
         beneficiario: document.getElementById('beneficiario').value,
         macchina: document.getElementById('macchina').value,
-        // Converte virgole in punti per i calcoli
         kmQuadro: document.getElementById('kmQuadro').value.replace(',', '.'),
         prezzoLitro: document.getElementById('prezzoLitro').value.replace(',', '.'),
         isPrimo: param1
@@ -387,22 +341,17 @@ function submitForm(param1) {
     
     if(currentMode === 'risparmi' && param1) form.importo = "-" + form.importo;
 
-    // --- OTTIMISTIC UI START ---
-    // 1. Feedback immediato (Vibrazione + UI)
     if (navigator.vibrate) navigator.vibrate(50);
-    
     const status = document.getElementById('status');
     status.innerText = "✅ Salvataggio...";
     status.style.color = "green";
 
-    // 2. Pulizia campi immediata (L'utente si sente libero subito)
     document.getElementById('importo').value = "";
     document.getElementById('note').value = "";
     document.getElementById('idRif').value = "";
     document.getElementById('kmQuadro').value = "";
     document.getElementById('prezzoLitro').value = "";
     
-    // 3. Incremento ID Locale (Finto, per dare continuità)
     let idField = document.getElementById('idAuto');
     if(idField.value && !isNaN(idField.value)) {
         let nextId = parseInt(idField.value) + 1;
@@ -410,23 +359,18 @@ function submitForm(param1) {
         if(currentMode === 'entrate') allData.idEntrata = nextId;
         if(currentMode === 'spese') allData.idSpesa = nextId;
     }
-    // --- OTTIMISTIC UI END ---
 
-    // 4. Invio Dati in Background (Fire and Forget)
-    // Usiamo 'no-cors' ma NON cerchiamo di leggere il JSON di risposta,
-    // perché sarebbe impossibile e causerebbe errore.
     fetch(API_URL, {
         method: 'POST',
         mode: 'no-cors', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
     }).then(() => {
-        // Poiché è no-cors, finiamo qui anche se il server ha lavorato.
-        console.log("Richiesta inviata al server.");
+        console.log("Richiesta inviata.");
         setTimeout(() => { status.innerText = ""; }, 2500);
     }).catch(err => {
         console.error("Errore Fetch", err);
-        status.innerText = "⚠️ Errore di rete (controlla connessione)";
+        status.innerText = "⚠️ Errore di rete";
         status.style.color = "orange";
     });
 }
